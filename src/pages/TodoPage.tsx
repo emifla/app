@@ -1,79 +1,98 @@
-import React, { useState } from 'react'
-import { getTodoCategories, addTodoCategory, updateTodoCategory, deleteTodoCategory, addTodoItem } from '../lib/storage'
-import { TodoCategory } from '../lib/models'
+import React, { useMemo, useState } from 'react'
+import {
+  addTodoCategory, addTodoItem, getTodoCategories,
+  toggleTodoFavorite, toggleTodoItem, deleteTodoCategoryById
+} from '../lib/storage'
+import type { TodoCategory } from '../lib/models'
 
-export default function TodoPage({ onBack }:{ onBack:()=>void }){
+export default function TodoPage({ onBack }: { onBack: () => void }) {
   const [categories, setCategories] = useState<TodoCategory[]>(getTodoCategories())
-  const [name, setName] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [newCategory, setNewCategory] = useState('')
+  const [newItems, setNewItems] = useState<Record<string,string>>({})
 
-  const refresh = ()=> setCategories(getTodoCategories())
+  const refresh = () => setCategories([...getTodoCategories()])
+  const completed = useMemo(() => categories.reduce((s,c) => s + c.items.filter(i => i.isCompleted).length, 0), [categories])
+  const total = useMemo(() => categories.reduce((s,c) => s + c.items.length, 0), [categories])
 
-  const handleAdd = ()=>{
-    if (!name.trim()) return
-    addTodoCategory(name.trim())
-    setName('')
+  const addCategory = () => {
+    if (!newCategory.trim()) return
+    addTodoCategory(newCategory.trim())
+    setNewCategory('')
     refresh()
   }
 
-  const toggleFavorite = (id:string)=>{
-    const cats = getTodoCategories()
-    const idx = cats.findIndex(c=>c.id===id)
-    if (idx===-1) return
-    cats[idx].isFavorite = !cats[idx].isFavorite
-    updateTodoCategory(cats[idx])
-    refresh()
-  }
-
-  const addItem = (id:string, title:string)=>{
-    if (!title.trim()) return
-    addTodoItem(id, title.trim())
+  const addItem = (categoryId: string) => {
+    const title = (newItems[categoryId] || '').trim()
+    if (!title) return
+    addTodoItem(categoryId, title)
+    setNewItems(v => ({ ...v, [categoryId]: '' }))
     refresh()
   }
 
   return (
-    <div>
-      <button onClick={onBack} className="small" style={{marginBottom:10}}>← Home</button>
-      <h2>To‑Do Categories</h2>
-      <div className="form-row">
-        <input placeholder="New category" value={name} onChange={e=>setName(e.target.value)} />
-        <button className="button" onClick={handleAdd}>Add</button>
-      </div>
+    <main className="page page-todo">
+      <header className="page-topbar">
+        <button className="back-button" onClick={onBack}>←</button>
+        <div><div className="eyebrow dark">MIN HVERDAG</div><h2>To Do</h2></div>
+      </header>
 
-      <div className="list">
-        {categories.map(cat=> (
-          <div key={cat.id} className="item">
-            <div>
-              <div style={{fontWeight:600}}>{cat.name} {cat.isFavorite ? '⭐' : ''}</div>
-              <div className="small">{cat.items.filter(i=>!i.isCompleted).length} remaining • {cat.completedWeeks}w</div>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              <button onClick={()=>toggleFavorite(cat.id)} className="small">Favorite</button>
-            </div>
-          </div>
-        ))}
-      </div>
+      <section className="glass-card">
+        <span className="small-label">Ferdig</span>
+        <strong className="big-number">{completed} av {total}</strong>
+        <div className="progress-track"><div className="progress-fill" style={{width: `${total ? completed/total*100 : 0}%`}} /></div>
+      </section>
 
-      <hr style={{margin:'18px 0'}} />
-      <h3>Add item to category</h3>
-      <AddItemForm onAdd={addItem} categories={categories} />
+      <section className="glass-card add-card">
+        <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Ny kategori" />
+        <button onClick={addCategory}>Legg til</button>
+      </section>
 
-    </div>
+      <section className="accordion-list">
+        {categories.map(category => {
+          const open = expanded === category.id
+          const done = category.items.filter(i => i.isCompleted).length
+          return (
+            <article className="accordion-card" key={category.id}>
+              <div className="accordion-header" onClick={() => setExpanded(open ? null : category.id)}>
+                <div><h3>{category.name}</h3><span>{done}/{category.items.length} ferdig</span></div>
+                <div className="accordion-actions">
+                  <button onClick={e => { e.stopPropagation(); toggleTodoFavorite(category.id); refresh() }}>
+                    {category.isFavorite ? '★' : '☆'}
+                  </button>
+                  <span>{open ? '⌃' : '⌄'}</span>
+                </div>
+              </div>
+
+              {open && (
+                <div className="accordion-body">
+                  {category.items.map(item => (
+                    <label className="todo-row" key={item.id}>
+                      <input type="checkbox" checked={item.isCompleted}
+                        onChange={() => { toggleTodoItem(category.id, item.id); refresh() }} />
+                      <span className={item.isCompleted ? 'completed' : ''}>{item.title}</span>
+                    </label>
+                  ))}
+
+                  <div className="inline-add">
+                    <input value={newItems[category.id] || ''}
+                      onChange={e => setNewItems(v => ({...v, [category.id]: e.target.value}))}
+                      placeholder="Ny oppgave" />
+                    <button onClick={() => addItem(category.id)}>+</button>
+                  </div>
+
+                  <button className="danger-link" onClick={() => {
+                    if (confirm(`Slette kategorien "${category.name}"?`)) {
+                      deleteTodoCategoryById(category.id); setExpanded(null); refresh()
+                    }
+                  }}>Slett kategori</button>
+                </div>
+              )}
+            </article>
+          )
+        })}
+      </section>
+    </main>
   )
 }
 
-function AddItemForm({categories, onAdd}:{categories:TodoCategory[], onAdd:(id:string,title:string)=>void}){
-  const [catId, setCatId] = useState(categories[0]?.id || '')
-  const [title, setTitle] = useState('')
-  React.useEffect(()=>{ if(!catId && categories[0]) setCatId(categories[0].id) },[categories])
-  return (
-    <div>
-      <div className="form-row">
-        <select value={catId} onChange={e=>setCatId(e.target.value)}>
-          {categories.map(c=> <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <input placeholder="Item title" value={title} onChange={e=>setTitle(e.target.value)} />
-        <button className="button" onClick={()=>{ if(catId) onAdd(catId,title); setTitle('') }}>Add</button>
-      </div>
-    </div>
-  )
-}
