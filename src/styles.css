@@ -1,0 +1,18 @@
+/* simple styles for the PWA */
+:root{
+  --bg: #f7f7f8;
+  --card: #ffffff;
+  --accent: #0b84ff;
+  --muted: #6b7280;
+}
+body{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; background:var(--bg); color:#111}
+.app{max-width:900px;margin:0 auto;padding:18px}
+.header{display:flex;align-items:center;justify-content:space-between}
+.big-cta{display:flex;gap:12px;margin-top:18px}
+.card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.button{background:var(--accent);color:white;padding:10px 14px;border-radius:8px;border:none}
+.list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;background:#fff}
+.small{font-size:13px;color:var(--muted)}
+.form-row{display:flex;gap:8px;margin-top:8px}
+input, button, textarea{font-family:inherit}
