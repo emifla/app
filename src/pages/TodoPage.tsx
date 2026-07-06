@@ -1,23 +1,50 @@
 import React, { useMemo, useState } from 'react'
 import {
-  addTodoCategory, addTodoItem, getTodoCategories,
-  toggleTodoFavorite, toggleTodoItem, deleteTodoCategoryById
+  addTodoCategory,
+  addTodoItem,
+  deleteTodoCategoryById,
+  deleteTodoItem,
+  getTodoCategories,
+  recurrenceLabels,
+  setTodoRecurrence,
+  toggleTodoFavorite,
+  toggleTodoItem
 } from '../lib/storage'
-import type { TodoCategory } from '../lib/models'
+import type { TodoCategory, Recurrence } from '../lib/models'
+
+const recurrenceOptions: Recurrence[] = [
+  'daily',
+  'weekly',
+  'biweekly',
+  'monthly'
+]
 
 export default function TodoPage({ onBack }: { onBack: () => void }) {
   const [categories, setCategories] = useState<TodoCategory[]>(getTodoCategories())
   const [expanded, setExpanded] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
-  const [newItems, setNewItems] = useState<Record<string,string>>({})
+  const [newFrequency, setNewFrequency] = useState<Recurrence>('weekly')
+  const [newItems, setNewItems] = useState<Record<string, string>>({})
 
   const refresh = () => setCategories([...getTodoCategories()])
-  const completed = useMemo(() => categories.reduce((s,c) => s + c.items.filter(i => i.isCompleted).length, 0), [categories])
-  const total = useMemo(() => categories.reduce((s,c) => s + c.items.length, 0), [categories])
+
+  const completed = useMemo(
+    () => categories.reduce(
+      (sum, category) => sum + category.items.filter(item => item.isCompleted).length,
+      0
+    ),
+    [categories]
+  )
+
+  const total = useMemo(
+    () => categories.reduce((sum, category) => sum + category.items.length, 0),
+    [categories]
+  )
 
   const addCategory = () => {
-    if (!newCategory.trim()) return
-    addTodoCategory(newCategory.trim())
+    const name = newCategory.trim()
+    if (!name) return
+    addTodoCategory(name, newFrequency)
     setNewCategory('')
     refresh()
   }
@@ -26,66 +53,188 @@ export default function TodoPage({ onBack }: { onBack: () => void }) {
     const title = (newItems[categoryId] || '').trim()
     if (!title) return
     addTodoItem(categoryId, title)
-    setNewItems(v => ({ ...v, [categoryId]: '' }))
+    setNewItems(current => ({ ...current, [categoryId]: '' }))
     refresh()
   }
 
   return (
-    <main className="page page-todo">
-      <header className="page-topbar">
-        <button className="back-button" onClick={onBack}>←</button>
-        <div><div className="eyebrow dark">MIN HVERDAG</div><h2>To Do</h2></div>
+    <main className="inner-page todo-page">
+      <header className="inner-header">
+        <button className="round-button" onClick={onBack}>←</button>
+        <div>
+          <span className="section-kicker">MIN HVERDAG</span>
+          <h2>To Do</h2>
+        </div>
       </header>
 
-      <section className="glass-card">
-        <span className="small-label">Ferdig</span>
-        <strong className="big-number">{completed} av {total}</strong>
-        <div className="progress-track"><div className="progress-fill" style={{width: `${total ? completed/total*100 : 0}%`}} /></div>
+      <section className="metric-card purple-card">
+        <div>
+          <span>Fullført</span>
+          <strong>{completed} av {total}</strong>
+        </div>
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{ width: `${total ? (completed / total) * 100 : 0}%` }}
+          />
+        </div>
       </section>
 
-      <section className="glass-card add-card">
-        <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Ny kategori" />
+      <section className="input-card recurrence-input-card">
+        <input
+          value={newCategory}
+          onChange={event => setNewCategory(event.target.value)}
+          placeholder="Ny kategori"
+          onKeyDown={event => event.key === 'Enter' && addCategory()}
+        />
+        <select
+          value={newFrequency}
+          onChange={event => setNewFrequency(event.target.value as Recurrence)}
+        >
+          {recurrenceOptions.map(option => (
+            <option key={option} value={option}>
+              {recurrenceLabels[option]}
+            </option>
+          ))}
+        </select>
         <button onClick={addCategory}>Legg til</button>
       </section>
 
       <section className="accordion-list">
+        {categories.length === 0 && (
+          <div className="empty-state">
+            <span>✓</span>
+            <h3>Ingen kategorier ennå</h3>
+            <p>Lag din første kategori over.</p>
+          </div>
+        )}
+
         {categories.map(category => {
-          const open = expanded === category.id
-          const done = category.items.filter(i => i.isCompleted).length
+          const isOpen = expanded === category.id
+          const done = category.items.filter(item => item.isCompleted).length
+          const percent = category.items.length
+            ? Math.round((done / category.items.length) * 100)
+            : 0
+          const recurrence = category.recurrence || 'weekly'
+
           return (
-            <article className="accordion-card" key={category.id}>
-              <div className="accordion-header" onClick={() => setExpanded(open ? null : category.id)}>
-                <div><h3>{category.name}</h3><span>{done}/{category.items.length} ferdig</span></div>
+            <article className={`accordion-card ${isOpen ? 'open' : ''}`} key={category.id}>
+              <button
+                className="accordion-header"
+                onClick={() => setExpanded(isOpen ? null : category.id)}
+              >
+                <div className="category-title-block">
+                  <div className="category-icon">{percent === 100 ? '✓' : '○'}</div>
+                  <div>
+                    <h3>{category.name}</h3>
+                    <span>
+                      {done}/{category.items.length} ferdig · {recurrenceLabels[recurrence]}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="accordion-actions">
-                  <button onClick={e => { e.stopPropagation(); toggleTodoFavorite(category.id); refresh() }}>
+                  <button
+                    className={`star-button ${category.isFavorite ? 'active' : ''}`}
+                    onClick={event => {
+                      event.stopPropagation()
+                      toggleTodoFavorite(category.id)
+                      refresh()
+                    }}
+                  >
                     {category.isFavorite ? '★' : '☆'}
                   </button>
-                  <span>{open ? '⌃' : '⌄'}</span>
+                  <span className="chevron">{isOpen ? '⌃' : '⌄'}</span>
                 </div>
-              </div>
+              </button>
 
-              {open && (
+              {isOpen && (
                 <div className="accordion-body">
+                  <div className="frequency-editor">
+                    <label>Nullstill oppgaver</label>
+                    <select
+                      value={recurrence}
+                      onChange={event => {
+                        setTodoRecurrence(
+                          category.id,
+                          event.target.value as Recurrence
+                        )
+                        refresh()
+                      }}
+                    >
+                      {recurrenceOptions.map(option => (
+                        <option key={option} value={option}>
+                          {recurrenceLabels[option]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {category.items.length === 0 && (
+                    <p className="muted-text">Denne kategorien er tom.</p>
+                  )}
+
                   {category.items.map(item => (
-                    <label className="todo-row" key={item.id}>
-                      <input type="checkbox" checked={item.isCompleted}
-                        onChange={() => { toggleTodoItem(category.id, item.id); refresh() }} />
-                      <span className={item.isCompleted ? 'completed' : ''}>{item.title}</span>
-                    </label>
+                    <div className="todo-row" key={item.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={item.isCompleted}
+                          onChange={() => {
+                            toggleTodoItem(category.id, item.id)
+                            refresh()
+                          }}
+                        />
+                        <span className={item.isCompleted ? 'completed' : ''}>
+                          {item.title}
+                        </span>
+                      </label>
+                      <button
+                        className="row-delete"
+                        onClick={() => {
+                          deleteTodoItem(category.id, item.id)
+                          refresh()
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
 
                   <div className="inline-add">
-                    <input value={newItems[category.id] || ''}
-                      onChange={e => setNewItems(v => ({...v, [category.id]: e.target.value}))}
-                      placeholder="Ny oppgave" />
+                    <input
+                      value={newItems[category.id] || ''}
+                      onChange={event =>
+                        setNewItems(current => ({
+                          ...current,
+                          [category.id]: event.target.value
+                        }))
+                      }
+                      placeholder="Ny oppgave"
+                      onKeyDown={event => event.key === 'Enter' && addItem(category.id)}
+                    />
                     <button onClick={() => addItem(category.id)}>+</button>
                   </div>
 
-                  <button className="danger-link" onClick={() => {
-                    if (confirm(`Slette kategorien "${category.name}"?`)) {
-                      deleteTodoCategoryById(category.id); setExpanded(null); refresh()
-                    }
-                  }}>Slett kategori</button>
+                  <div className="category-footer">
+                    <span>
+                      {category.isFavorite
+                        ? `Nullstilles ${recurrenceLabels[recurrence].toLowerCase()}`
+                        : 'Trykk på stjernen for automatisk nullstilling'}
+                    </span>
+                    <button
+                      className="text-danger"
+                      onClick={() => {
+                        if (confirm(`Slette kategorien "${category.name}"?`)) {
+                          deleteTodoCategoryById(category.id)
+                          setExpanded(null)
+                          refresh()
+                        }
+                      }}
+                    >
+                      Slett kategori
+                    </button>
+                  </div>
                 </div>
               )}
             </article>
@@ -95,4 +244,3 @@ export default function TodoPage({ onBack }: { onBack: () => void }) {
     </main>
   )
 }
-
