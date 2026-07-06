@@ -1,17 +1,26 @@
 import React from 'react'
 
-export default function Home({onNavigate}:{onNavigate:(v:'home'|'todo'|'budget')=>void}){
+export default function Home({ onNavigate }: { onNavigate: (v: 'home'|'todo'|'budget') => void }) {
   return (
-    <div>
-      <div className="card big-cta">
-        <button className="button" onClick={()=>onNavigate('todo')}>To‑Do</button>
-        <button className="button" onClick={()=>onNavigate('budget')}>Budgeting</button>
-      </div>
+    <main className="home-scroll">
+      <section className="hero-slide todo-hero">
+        <div className="hero-content">
+          <div className="eyebrow">MIN HVERDAG</div>
+          <h1>To Do</h1>
+          <p>Rutiner, ukesmål og oppgaver samlet på ett sted.</p>
+          <button onClick={() => onNavigate('todo')}>Åpne To Do</button>
+          <div className="scroll-hint">Sveip videre ↓</div>
+        </div>
+      </section>
 
-      <div style={{marginTop:18}} className="card">
-        <div className="small">To‑Do: create categories, mark favorites. Favorites auto-reset every Monday and track weeks fully completed.</div>
-        <div className="small" style={{marginTop:8}}>Budgeting: add categories with a daily budget, add spending transactions; balance auto-increments every day by the daily budget.</div>
-      </div>
-    </div>
+      <section className="hero-slide budget-hero">
+        <div className="hero-content">
+          <div className="eyebrow">MIN ØKONOMI</div>
+          <h1>Budsjett</h1>
+          <p>Se hvor mye du har igjen og hold kontroll dag for dag.</p>
+          <button onClick={() => onNavigate('budget')}>Åpne budsjett</button>
+        </div>
+      </section>
+    </main>
   )
 }
